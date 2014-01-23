@@ -1,8 +1,7 @@
 {
     var flattenString = function(arrs) {
-        if(arrs == null) return "";
         var acum ="";
-        for(var i=0; i< arrs.length; i++) {
+        for(var i=0; arrs && i< arrs.length; i++) {
           if(typeof(arrs[i])==='string') {
             acum = acum + arrs[i];
           } else {
@@ -27,9 +26,8 @@
     }
 
     var arrayToString = function(array) {
-    	if(array==null) return "";
         var tmp = "";
-        for(var i=0; i<array.length; i++) {
+        for(var i=0; array && i<array.length; i++) {
             tmp = tmp + array[i];            
         }
 
@@ -39,6 +37,8 @@
 
 DOCUMENT = 
   SPARQL
+  / TURTLE
+
 
 SPARQL =
   QueryUnit
@@ -68,17 +68,17 @@ Prologue "[3] Prologue"
   = b:BaseDecl? WS* pfx:PrefixDecl* {
       return { token: 'prologue',
                base: b,
-               prefixes: (pfx || "") }
+               prefixes: pfx }
 }
 
 /*
   [4]  	BaseDecl	  ::=  	'BASE' IRI_REF
 */
 BaseDecl "[4] BaseDecl"
-  = WS* ('BASE'/'base') WS* i:IRI_REF {
+  = WS* ('B'/'b')('A'/'a')('S'/'s')('E'/'e') WS* i:IRI_REF {
       registerDefaultPrefix(i);
 
-      var base = {};
+      base = {};
       base.token = 'base';
       base.value = i;
 
@@ -89,11 +89,73 @@ BaseDecl "[4] BaseDecl"
   [5]  	PrefixDecl	  ::=  	'PREFIX' PNAME_NS IRI_REF
 */
 PrefixDecl "[5] PrefixDecl"
-  = WS* ('PREFIX'/'prefix')  WS* p:PNAME_NS  WS* l:IRI_REF {
+  = WS* ('P'/'p')('R'/'r')('E'/'e')('F'/'f')('I'/'i')('X'/'x')  WS* p:PNAME_NS  WS* l:IRI_REF {
 
       registerPrefix(p,l);
 
-      var prefix = {};
+      prefix = {};
+      prefix.token = 'prefix';
+      prefix.prefix = p;
+      prefix.local = l;
+
+      return prefix;
+}
+
+/*
+  [1]	turtleDoc 	::= 	statement*
+  @turtle
+*/
+TURTLE
+    = sts:statement* {
+        return sts;
+    }
+
+/*
+  [2]	statement 	::= 	directive '.' | triples '.' | ws+
+  @turtle
+*/
+statement
+    = WS* d:directive WS* '.' WS* {
+        return d;
+    }
+    / WS* ts:TriplesBlock WS* {
+        return ts;
+    }
+    / WS+
+
+/*
+  [3]	directive 	::= 	prefixID | base
+  @turtle
+*/
+directive
+    = prefixID
+    / base
+
+/*
+  [5]	base 	::= 	'@base' ws+ uriref
+  @turtle
+*/
+base
+  = WS* '@base' WS+ i:IRI_REF {
+      registerDefaultPrefix(i);
+
+      base = {};
+      base.token = 'base';
+      base.value = i;
+
+      return base;
+}
+
+/*
+  [4]	prefixID 	::= 	'@prefix' ws+ prefixName? ':' uriref
+  @turtle
+*/
+prefixID
+  = WS* '@prefix'  WS+ p:PN_PREFIX? ':' WS* l:IRI_REF {
+
+      registerPrefix(p,l);
+
+      prefix = {};
       prefix.token = 'prefix';
       prefix.prefix = p;
       prefix.local = l;
@@ -111,19 +173,19 @@ PrefixDecl "[5] PrefixDecl"
 SelectQuery "[6] SelectQuery"
   = s:SelectClause WS* gs:DatasetClause* WS* w:WhereClause WS* sm:SolutionModifier WS* BindingsClause {
 
-      var dataset = {'named':[], 'implicit':[]};
+      var dataset = {'named':[], 'default':[]};
       for(var i=0; gs && i<gs.length; i++) {
           var g = gs[i];
           if(g.kind === 'default') {
-              dataset['implicit'].push(g.graph);
+              dataset['default'].push(g.graph);
           } else {
               dataset['named'].push(g.graph)
           }
       }
 
 
-      if(dataset['named'].length === 0 && dataset['implicit'].length === 0) {
-          dataset['implicit'].push({token:'uri',
+      if(dataset['named'].length === 0 && dataset['default'].length === 0) {
+          dataset['default'].push({token:'uri', 
                                    prefix:null, 
                                    suffix:null, 
                                    value:'https://github.com/antoniogarrote/rdfstore-js#default_graph'});
@@ -163,19 +225,19 @@ SubSelect "[7] SubSelect"
   [8]  	SelectClause	  ::=  	'SELECT' ( 'DISTINCT' | 'REDUCED' )? ( ( Var | ( '(' Expression 'AS' Var ')' ) )+ | '*' )
 */
 SelectClause "[8] SelectClause"
-    = WS* ('SELECT'/'select') WS* mod:( ('DISTINCT'/'distinct') / ('REDUCED'/'reduced') )? WS* proj:( ( ( WS* Var WS* ) / ( WS* '(' WS* Expression WS* ('AS'/'as') WS* Var WS* ')' WS* ) )+ / ( WS* '*' WS* )  ) {
+    = WS* ('S'/'s')('E'/'e')('L'/'l')('E'/'e')('C'/'c')('T'/'t') WS* mod:( ('D'/'d')('I'/'i')('S'/'s')('T'/'t')('I'/'i')('N'/'n')('C'/'c')('T'/'t') / ('R'/'r')('E'/'e')('D'/'d')('U'/'u')('C'/'c')('E'/'e')('D'/'d') )? WS* proj:( ( ( WS* Var WS* ) / ( WS* '(' WS* Expression WS* ('A'/'a')('S'/'s') WS* Var WS* ')' WS* ) )+ / ( WS* '*' WS* )  ) {
      var vars = [];
-      if(proj.length === 3 && proj[1]==="*") {
+      if(proj && proj.length === 3 && proj[1]==="*") {
           return {vars: [{token: 'variable', kind:'*'}], modifier:arrayToString(mod)};
       }
 
-      for(var i=0; i< proj.length; i++) {
+      for(var i=0; proj && i< proj.length; i++) {
           var aVar = proj[i];
 
           if(aVar.length === 3) {
               vars.push({token: 'variable', kind:'var', value:aVar[1]});
           } else {
-              vars.push({token: 'variable', kind:'aliased', expression: aVar[3], alias:aVar[7]})
+              vars.push({token: 'variable', kind:'aliased', expression: aVar[3], alias:aVar[8]})
           }
       }
 
@@ -186,20 +248,20 @@ SelectClause "[8] SelectClause"
   [9]  	ConstructQuery	  ::=  	'CONSTRUCT' ConstructTemplate DatasetClause* WhereClause SolutionModifier
 */
 ConstructQuery "[9] ConstructQuery"
-    = WS* ('CONSTRUCT'/'construct') WS* t:ConstructTemplate WS* gs:DatasetClause* WS* w:WhereClause WS* sm:SolutionModifier {
-      var dataset = {'named':[], 'implicit':[]};
+    = WS* ('C'/'c')('O'/'o')('N'/'n')('S'/'s')('T'/'t')('R'/'r')('U'/'u')('C'/'c')('T'/'t') WS* t:ConstructTemplate WS* gs:DatasetClause* WS* w:WhereClause WS* sm:SolutionModifier {
+      var dataset = {'named':[], 'default':[]};
       for(var i=0; gs && i<gs.length; i++) {
           var g = gs[i];
           if(g.kind === 'default') {
-              dataset['implicit'].push(g.graph);
+              dataset['default'].push(g.graph);
           } else {
               dataset['named'].push(g.graph)
           }
       }
 
 
-      if(dataset['named'].length === 0 && dataset['implicit'].length === 0) {
-          dataset['implicit'].push({token:'uri',
+      if(dataset['named'].length === 0 && dataset['default'].length === 0) {
+          dataset['default'].push({token:'uri', 
                                    prefix:null, 
                                    suffix:null, 
                                    value:'https://github.com/antoniogarrote/rdfstore-js#default_graph'});
@@ -235,23 +297,23 @@ DescribeQuery "[10] DescribeQuery"
 [11]  	AskQuery	  ::=  	'ASK' DatasetClause* WhereClause
 */
 AskQuery "[11] AskQuery"
-    = WS* ('ASK'/'ask') WS* gs:DatasetClause* WS* w:WhereClause {
-      var dataset = {'named':[], 'implicit':[]};
+    = WS* ('A'/'a')('S'/'s')('K'/'k') WS* gs:DatasetClause* WS* w:WhereClause {
+      var dataset = {'named':[], 'default':[]};
       for(var i=0; gs && i<gs.length; i++) {
           var g = gs[i];
-          if(g.kind === 'implicit') {
-              dataset['implicit'].push(g.graph);
+          if(g.kind === 'default') {
+              dataset['default'].push(g.graph);
           } else {
               dataset['named'].push(g.graph)
           }
       }
 
 
-      if(dataset['named'].length === 0 && dataset['implicit'].length === 0) {
-          dataset['implicit'].push({token:'uri',
-                                    prefix:null,
-                                    suffix:null,
-                                    value:'https://github.com/antoniogarrote/rdfstore-js#default_graph'});
+      if(dataset['named'].length === 0 && dataset['default'].length === 0) {
+          dataset['default'].push({token:'uri', 
+                                   prefix:null, 
+                                   suffix:null, 
+                                   value:'https://github.com/antoniogarrote/rdfstore-js#default_graph'});
       }
 
       var query = {};
@@ -267,8 +329,8 @@ AskQuery "[11] AskQuery"
   [12]  	DatasetClause	  ::=  	'FROM' ( DefaultGraphClause | NamedGraphClause )
 */
 DatasetClause "[12] DatasetClause"
-  = ('FROM'/'from') WS* gs:( DefaultGraphClause / NamedGraphClause ) WS* {
-      return (gs || []);
+  = ('F'/'f')('R'/'r')('O'/'o')('M'/'m') WS* gs:( DefaultGraphClause / NamedGraphClause ) WS* {
+      return gs;
 }
 
 /*
@@ -282,7 +344,7 @@ DefaultGraphClause "[13] DefaultGraphClause" = WS* s:SourceSelector {
   [14]  	NamedGraphClause	  ::=  	'NAMED' SourceSelector
 */
 NamedGraphClause "[14] NamedGraphClause"
-  = ('NAMED'/'named') WS* s:SourceSelector {      
+  = ('N'/'n')('A'/'a')('M'/'m')('E'/'e')('D'/'d') WS* s:SourceSelector {      
       return {graph:s, kind:'named', token:'graphCluase'};
 }
 
@@ -296,7 +358,7 @@ SourceSelector "[15] SourceSelector"
   [16]  	WhereClause	  ::=  	'WHERE'? GroupGraphPattern
 */
 WhereClause "[16] WhereClause"
-  = (('WHERE'/'where'))? WS* g:GroupGraphPattern WS* {
+  = (('W'/'w')('H'/'h')('E'/'e')('R'/'r')('E'/'e'))? WS* g:GroupGraphPattern WS* {
       return g;
 }
 
@@ -328,7 +390,7 @@ SolutionModifier "[17] SolutionModifier"
   [18]  	GroupClause	  ::=  	'GROUP' 'BY' GroupCondition+
 */
 GroupClause "[18] GroupClause"
-  = ('GROUP'/'group') WS* ('BY'/'by') WS* conds:GroupCondition+ {
+  = ('G'/'g')('R'/'r')('O'/'o')('U'/'u')('P'/'p') WS* ('B'/'b')('Y'/'y') WS* conds:GroupCondition+ {
       return conds;
 }
 
@@ -342,11 +404,11 @@ GroupCondition "[19] GroupCondition"
   / WS* f:FunctionCall WS* {
       return f;
 }
-  / WS* '(' WS* e:Expression WS*  alias:( ('AS'/'as') WS* Var )?  WS* ')' WS* {
+  / WS* '(' WS* e:Expression WS*  alias:( ('A'/'a')('S'/'s') WS* Var )?  WS* ')' WS* {
       if(alias.length != 0) {
           return {token: 'aliased_expression',
                   expression: e,
-                  alias: alias[2] };
+                  alias: alias[3] };
       } else {
           return e;
       }
@@ -371,7 +433,7 @@ HavingCondition "[21] HavingCondition"
   [22]  	OrderClause	  ::=  	'ORDER' 'BY' OrderCondition+
 */
 OrderClause "[22] OrderClause"
-  = ('ORDER'/'order') WS* ('BY'/'by') WS* os:OrderCondition+ WS* {
+  = ('O'/'o')('R'/'r')('D'/'d')('E'/'e')('R'/'r') WS* ('B'/'b')('Y'/'y') WS* os:OrderCondition+ WS* {
       return os;
 }
 
@@ -379,15 +441,15 @@ OrderClause "[22] OrderClause"
   [23]  	OrderCondition	  ::=  	 ( ( 'ASC' | 'DESC' ) BrackettedExpression ) | ( Constraint | Var )
 */
 OrderCondition "[23] OrderCondition"
-  = ( direction:( 'ASC'/ 'asc' / 'DESC'/ 'desc' ) WS* e:BrackettedExpression WS* ) {
-      return { direction: direction.toUpperCase(), expression:e };
+  = ( direction:( 'ASC' / 'DESC' ) WS* e:BrackettedExpression WS* ) {
+      return { direction: direction, expression:e };
 }
 / e:( Constraint / Var ) WS* {
     if(e.token === 'var') {
-        var e = { token:'expression',
-                  expressionType:'atomic',
-                  primaryexpression: 'var',
-                  value: e };
+        e = { token:'expression', 
+              expressionType:'atomic',
+              primaryexpression: 'var',
+              value: e };
     }
     return { direction: 'ASC', expression:e };
 }
@@ -414,7 +476,7 @@ LimitOffsetClauses "[24] LimitOffsetClauses"
   [25]  	LimitClause	  ::=  	'LIMIT' INTEGER
 */
 LimitClause "[25] LimitClause"
-  = ('LIMIT'/'limit') WS* i:INTEGER WS* {
+  = ('L'/'l')('I'/'i')('M'/'m')('I'/'i')('T'/'t') WS* i:INTEGER WS* {
   return { limit:parseInt(i.value) };
 }
 
@@ -422,7 +484,7 @@ LimitClause "[25] LimitClause"
   [26]  	OffsetClause	  ::=  	'OFFSET' INTEGER
 */
 OffsetClause "[26] OffsetClause"
-  = ('OFFSET'/'offset') WS* i:INTEGER WS* {
+  = ('O'/'o')('F'/'f')('F'/'f')('S'/'s')('E'/'e')('T'/'t') WS* i:INTEGER WS* {
   return { offset:parseInt(i.value) };
 }
 
@@ -476,12 +538,12 @@ Update1 "[31] Update1"
 [32]  	Load	  ::=  	'LOAD' IRIref ( 'INTO' GraphRef )?
 */
 Load "[32] Load"
-  = ('LOAD'/'load') WS* sg:IRIref WS* dg:( ('INTO'/'into') WS* GraphRef)? {
+  = ('L'/'l')('O'/'o')('A'/'a')('D'/'d') WS* sg:IRIref WS* dg:( ('I'/'i')('N'/'n')('T'/'t')('O'/'o') WS* GraphRef)? {
       var query = {};
       query.kind = 'load';
       query.token = 'executableunit'
       query.sourceGraph = sg;
-      query.destinyGraph = dg[2];
+      query.destinyGraph = dg[5];
       
       return query;
 }
@@ -491,7 +553,7 @@ Load "[32] Load"
   [33]  	Clear	  ::=  	'CLEAR' 'SILENT'? GraphRefAll
 */
 Clear "[33] Clear"
-  = ('CLEAR'/'clear') WS* ('SILENT'/'silent')? WS* ref:GraphRefAll {
+  = ('C'/'c')('L'/'l')('E'/'e')('A'/'a')('R'/'r') WS* (('S'/'s')('I'/'i')('L'/'l')('E'/'e')('N'/'n')('T'/'t'))? WS* ref:GraphRefAll {
       var query = {};
       query.kind = 'clear';
       query.token = 'executableunit'
@@ -504,7 +566,7 @@ Clear "[33] Clear"
   [34]  	Drop	  ::=  	'DROP' 'SILENT'? GraphRefAll
 */
 Drop "[34] Drop"
-  = ('DROP'/'drop')  WS* ('SILENT'/'silent')? WS* ref:GraphRefAll {
+  = ('D'/'d')('R'/'r')('O'/'o')('P'/'p')  WS* (('S'/'s')('I'/'i')('L'/'l')('E'/'e')('N'/'n')('T'/'t'))? WS* ref:GraphRefAll {
       var query = {};
       query.kind = 'drop';
       query.token = 'executableunit'
@@ -517,7 +579,7 @@ Drop "[34] Drop"
 [35]  	Create	  ::=  	'CREATE' 'SILENT'? GraphRef
 */
 Create "[35] Create"
-  = ('CREATE'/'create') WS* ('SILENT'/'silent')? WS* ref:GraphRef {
+  = ('C'/'c')('R'/'r')('E'/'e')('A'/'a')('T'/'t')('E'/'e') WS* (('S'/'s')('I'/'i')('L'/'l')('E'/'e')('N'/'n')('T'/'t'))? WS* ref:GraphRef {
       var query = {};
       query.kind = 'create';
       query.token = 'executableunit'
@@ -530,7 +592,7 @@ Create "[35] Create"
   [36]  	InsertData	  ::=  	'INSERT' <WS*> ',DATA' QuadData
 */
 InsertData "[36] InsertData"
-  = ('INSERT'/'insert') WS* ('DATA'/'data') WS* qs:QuadData {
+  = ('I'/'i')('N'/'n')('S'/'s')('E'/'e')('R'/'r')('T'/'t') WS* ('D'/'d')('A'/'a')('T'/'t')('A'/'a') WS* qs:QuadData {
       var query = {};
       query.kind = 'insertdata';
       query.token = 'executableunit'
@@ -543,7 +605,7 @@ InsertData "[36] InsertData"
   [37]  	DeleteData	  ::=  	'DELETE' <WS*> 'DATA' QuadData
 */
 DeleteData "[37] DeleteData"
-  =  ('DELETE'/'delete') WS* ('DATA'/'data') qs:QuadData {
+  =  ('D'/'d')('E'/'e')('L'/'l')('E'/'e')('T'/'t')('E'/'e') WS* ('D'/'d')('A'/'a')('T'/'t')('A'/'a') qs:QuadData {
       var query = {};
       query.kind = 'deletedata';
       query.token = 'executableunit'
@@ -556,7 +618,7 @@ DeleteData "[37] DeleteData"
   [38]  	DeleteWhere	  ::=  	'DELETE' <WS*> 'WHERE' QuadPattern
 */
 DeleteWhere "[38] DeleteWhere"
-  = ('DELETE'/'delete') WS* ('WHERE'/'where') WS* p:GroupGraphPattern {
+  = ('D'/'d')('E'/'e')('L'/'l')('E'/'e')('T'/'t')('E'/'e') WS* ('W'/'w')('H'/'h')('E'/'e')('R'/'r')('E'/'e') WS* p:GroupGraphPattern {
       var query = {};
       query.kind = 'modify';
       query.pattern = p;
@@ -594,12 +656,12 @@ DeleteWhere "[38] DeleteWhere"
   [39]  	Modify	  ::=  	( 'WITH' IRIref )? ( DeleteClause InsertClause? | InsertClause ) UsingClause* 'WHERE' GroupGraphPattern
 */
 Modify "[39] Modify"
-  = wg:(('WITH'/'with') WS* IRIref)? WS* dic:( DeleteClause WS* InsertClause? / InsertClause ) WS* uc:UsingClause* WS* ('WHERE'/'where') WS* p:GroupGraphPattern WS* {
+  = wg:(('W'/'w')('I'/'i')('T'/'t')('H'/'h') WS* IRIref)? WS* dic:( DeleteClause WS* InsertClause? / InsertClause ) WS* uc:UsingClause* WS* ('W'/'w')('H'/'h')('E'/'e')('R'/'r')('E'/'e') WS* p:GroupGraphPattern WS* {
       var query = {};
       query.kind = 'modify';
 
       if(wg != "") {
-          query.with = wg[2];
+          query.with = wg[5];
       } else {
           query.with = null;
       }
@@ -629,7 +691,7 @@ Modify "[39] Modify"
   [40]  	DeleteClause	  ::=  	'DELETE' QuadPattern
 */
 DeleteClause "[40] DeleteClause"
-  = ('DELETE'/'delete') q:QuadPattern {
+  = ('D'/'d')('E'/'e')('L'/'l')('E'/'e')('T'/'t')('E'/'e') q:QuadPattern {
       return q;
 }
 
@@ -637,7 +699,7 @@ DeleteClause "[40] DeleteClause"
   [41]  	InsertClause	  ::=  	'INSERT' QuadPattern
 */
 InsertClause "[41] InsertClause"
-  = ('INSERT'/'insert') q:QuadPattern {
+  = ('I'/'i')('N'/'n')('S'/'s')('E'/'e')('R'/'r')('T'/'t') q:QuadPattern {
   return q;
 }
 
@@ -645,9 +707,9 @@ InsertClause "[41] InsertClause"
   [42]  	UsingClause	  ::=  	'USING' ( IRIref | 'NAMED' IRIref )
 */
 UsingClause "[42] UsingClause"
-  = WS* ('USING'/'using') WS* g:( IRIref / ('NAMED'/'named') WS* IRIref ) {
-      if(g && g.length!=null) {
-          return {kind: 'named', uri: g[2]};
+  = WS* ('U'/'u')('S'/'s')('I'/'i')('N'/'n')('G'/'g') WS* g:( IRIref / ('N'/'n')('A'/'a')('M'/'m')('E'/'e')('D'/'d') WS* IRIref ) {
+      if(g.length!=null) {
+          return {kind: 'named', uri: g[6]};
       } else {
           return {kind: 'default', uri: g};
       }
@@ -657,7 +719,7 @@ UsingClause "[42] UsingClause"
   [43]  	GraphRef	  ::=  	'GRAPH' IRIref
 */
 GraphRef "[43] GraphRef"
-  = ('GRAPH'/'graph') WS* i:IRIref {
+  = ('G'/'g')('R'/'r')('A'/'a')('P'/'p')('H'/'h') WS* i:IRIref {
       return i;
 }
 
@@ -669,13 +731,13 @@ GraphRefAll "[44] GraphRefAll"
   = g:GraphRef {
       return g;
 }
-  / ('DEFAULT'/'default') {
+  / ('D'/'d')('E'/'e')('F'/'f')('A'/'a')('U'/'u')('L'/'l')('T'/'t') {
       return 'default';
 }
-  / ('NAMED'/'named') {
+  / ('N'/'n')('A'/'a')('M'/'m')('E'/'e')('D'/'d') {
       return 'named';
 }
-  / ('ALL'/'all') {
+  / ('A'/'a')('L'/'l')('L'/'l') {
       return 'all';
 }
 
@@ -702,7 +764,7 @@ Quads "[47] Quads"
   = ts:TriplesTemplate? qs:( QuadsNotTriples '.'? TriplesTemplate? )* {
       var quads = []
       if(ts && ts.triplesContext != null && ts.triplesContext != null) {
-        for(var i=0; i<ts.triplesContext.length; i++) {
+        for(var i=0; ts.triplesContext && i<ts.triplesContext.length; i++) {
             var triple = ts.triplesContext[i]
             triple.graph = null;
             quads.push(triple)
@@ -729,7 +791,7 @@ Quads "[47] Quads"
   [48]  	QuadsNotTriples	  ::=  	'GRAPH' VarOrIRIref '{' TriplesTemplate? '}'
 */
 QuadsNotTriples "[48] QuadsNotTriples"
-  = WS* ('GRAPH'/'graph') WS* g:VarOrIRIref WS* '{' WS* ts:TriplesTemplate? WS* '}' WS* {
+  = WS* ('G'/'g')('R'/'r')('A'/'a')('P'/'p')('H'/'h') WS* g:VarOrIRIref WS* '{' WS* ts:TriplesTemplate? WS* '}' WS* {
       var quads = []
       for(var i=0; ts && i<ts.triplesContext.length; i++) {
           var triple = ts.triplesContext[i]
@@ -782,8 +844,8 @@ GroupGraphPatternSub "[51] GroupGraphPatternSub"
       if(tb != null && tb != []) {
           subpatterns.push(tb);
       }
-	
-      for(var i=0; tbs && i<tbs.length; i++) {
+
+      for(var i=0; tbs && tbs && i<tbs.length; i++) {
           for(var j=0; j< tbs[i].length; j++) {
               if(tbs[i][j].token != null) {
                   subpatterns.push(tbs[i][j]);
@@ -819,7 +881,7 @@ GroupGraphPatternSub "[51] GroupGraphPatternSub"
           }
       }
 
-      if((currentBasicGraphPatterns && currentBasicGraphPatterns.length != 0) || (currentFilters && currentFilters.length != 0)) {
+      if(currentBasicGraphPatterns.length != 0 || currentFilters.length != 0) {
           var triplesContext = [];
           for(var j=0; j<currentBasicGraphPatterns.length; j++) {
               triplesContext = triplesContext.concat(currentBasicGraphPatterns[j].triplesContext);
@@ -850,7 +912,7 @@ TriplesBlock "[54] TriplesBlock"
      var triples = b.triplesContext;
      var toTest = null;
       if(bs && typeof(bs) === 'object') {
-            if(bs && bs.length != null) {
+            if(bs.length != null) {
                   if(bs[2].triplesContext!=null) {
                      triples = triples.concat(bs[2].triplesContext);
               }
@@ -876,7 +938,7 @@ GraphPatternNotTriples "[53] GraphPatternNotTriples"
   [54]  	OptionalGraphPattern	  ::=  	'OPTIONAL' GroupGraphPattern
 */
 OptionalGraphPattern "[54] OptionalGraphPattern"
-  = WS* ('OPTIONAL'/'optional') WS* v:GroupGraphPattern {
+  = WS* 'OPTIONAL' WS* v:GroupGraphPattern {
       return { token: 'optionalgraphpattern',
                value: v }
 }
@@ -885,8 +947,8 @@ OptionalGraphPattern "[54] OptionalGraphPattern"
   [55]  	GraphGraphPattern	  ::=  	'GRAPH' VarOrIRIref GroupGraphPattern
 */
 GraphGraphPattern "[55] GraphGraphPattern"
-  = WS* ('GRAPH'/'graph') WS* g:VarOrIRIref WS* gg:GroupGraphPattern {
-      for(var i=0; gg && i<gg.patterns.length; i++) {
+  = WS* ('G'/'g')('R'/'r')('A'/'a')('P'/'p')('H'/'h') WS* g:VarOrIRIref WS* gg:GroupGraphPattern {
+      for(var i=0; i<gg.patterns.length; i++) {
         var quads = []
         var ts = gg.patterns[i];
         for(var j=0; j<ts.triplesContext.length; j++) {
@@ -926,8 +988,8 @@ MinusGraphPattern "[57] MinusGraphPattern"
   [58]  	GroupOrUnionGraphPattern	  ::=  	GroupGraphPattern ( 'UNION' GroupGraphPattern )*
 */
 GroupOrUnionGraphPattern "[58] GroupOrUnionGraphPattern"
-  = a:GroupGraphPattern b:( WS* ('UNION'/'union') WS* GroupGraphPattern )* {
-      if(b == null || b.length === 0) {
+  = a:GroupGraphPattern b:( WS* ('U'/'u')('N'/'n')('I'/'i')('O'/'o')('N'/'n') WS* GroupGraphPattern )* {
+      if(b.length === 0) {
           return a;
       } else {
 
@@ -936,9 +998,9 @@ GroupOrUnionGraphPattern "[58] GroupOrUnionGraphPattern"
 
           for(var i=0; b && i<b.length; i++) {
               if(i==b.length-1) {
-                  lastToken.value.push(b[i][3]);
+                  lastToken.value.push(b[i][7]);
               } else {
-                  lastToken.value.push(b[i][3]);
+                  lastToken.value.push(b[i][7]);
                   var newToken = {token: 'graphunionpattern',
                                   value: [lastToken]}
 
@@ -955,7 +1017,7 @@ GroupOrUnionGraphPattern "[58] GroupOrUnionGraphPattern"
   [59]  	Filter	  ::=  	'FILTER' Constraint
 */
 Filter "[59] Filter"
-  = WS* ('FILTER'/'filter') WS* c:Constraint {
+  = WS* ('F'/'f')('I'/'i')('L'/'l')('T'/'t')('E'/'e')('R'/'r') WS* c:Constraint {
       return {token: 'filter',
               value: c}
 }
@@ -991,17 +1053,17 @@ ArgList "[62] ArgList"
       args.value = [];
       return args;
 }
-    / '(' d:('DISTINCT'/'distinct')? e:Expression es:( ',' Expression)* ')' {
-      var cleanEx = [];
+  / '(' d:'DISTINCT'? e:Expression es:( ',' Expression)* ')' {
+      cleanEx = [];
 
-      for(var i=0; es && i<es.length; i++) {
+      for(var i=0; i<es.length; i++) {
           cleanEx.push(es[i][1]);
       }
       var args = {};
       args.token = 'args';
       args.value = [e].concat(cleanEx);
 
-      if(d!=null && d.toUpperCase()==="DISTINCT") {
+      if(d==="DISTINCT") {
           args.distinct = true;
       } else {
           args.distinct = false;
@@ -1011,7 +1073,7 @@ ArgList "[62] ArgList"
 }
 
 /*
-  [63]  	ExpressionList	  ::=  	( NIL | '(' Expression ( WS* ',' WS* Expression )* ')' )
+  [63]  	ExpressionList	  ::=  	( NIL | '(' Expression ( ',' Expression )* ')' )
 */
 ExpressionList "[63] ExpressionList"
   = NIL {
@@ -1021,10 +1083,10 @@ ExpressionList "[63] ExpressionList"
       return args;
 }
   / '(' e:Expression es:( ',' Expression)* ')' {
-      var cleanEx = [];
+      cleanEx = [];
 
-      for(var i=0; es && i<es.length; i++) {
-          cleanEx.push(es[i][3]);
+      for(var i=0; i<es.length; i++) {
+          cleanEx.push(es[i][1]);
       }
       var args = {};
       args.token = 'args';
@@ -1133,13 +1195,13 @@ TriplesSameSubject "[66] TriplesSameSubject"
 */
 PropertyListNotEmpty "[67] PropertyListNotEmpty"
   = v:Verb WS* ol:ObjectList rest:( WS* ';' WS* ( Verb WS* ObjectList )? )* {
-      var token = {}
+      token = {}
       token.token = 'propertylist';
       var triplesContext = [];
       var pairs = [];
       var test = [];
 
-      for( var i=0; ol && i<ol.length; i++) {
+      for( var i=0; i<ol.length; i++) {
 
          if(ol[i].triplesContext != null) {
              triplesContext = triplesContext.concat(ol[i].triplesContext);
@@ -1197,7 +1259,7 @@ ObjectList "[69] ObjectList"
 
         toReturn.push(obj);
 
-        for(var i=0; objs && i<objs.length; i++) {
+        for(var i=0; i<objs.length; i++) {
             for(var j=0; j<objs[i].length; j++) {
                 if(typeof(objs[i][j])=="object" && objs[i][j].token != null) {
                     toReturn.push(objs[i][j]);
@@ -1309,7 +1371,7 @@ PropertyListNotEmptyPath "[73] PropertyListNotEmptyPath"
       var pairs = [];
       var test = [];
 
-      for( var i=0; ol && i<ol.length; i++) {
+      for( var i=0; i<ol.length; i++) {
 
          if(ol[i].triplesContext != null) {
              triplesContext = triplesContext.concat(ol[i].triplesContext);
@@ -1411,7 +1473,7 @@ PathSequence "[79] PathSequence"
 	} else {
 	    var acum = [first];
 
-	    for(var i=0; rest && i<rest.length; i++) 
+	    for(var i=0; i<rest.length; i++) 
 		acum.push(rest[i][1]);
 
 	    var path = {};
@@ -1503,8 +1565,8 @@ Integer "[86] Integer"
 */
 TriplesNode "[87] TriplesNode"
   = c:Collection {
-      var triplesContext = [];
-      var chainSubject = [];
+      triplesContext = [];
+      chainSubject = [];
 
       var triple = null;
 
@@ -1513,10 +1575,10 @@ TriplesNode "[87] TriplesNode"
       if(c.length == 1 && c[0].token && c[0].token === 'nil') {
           GlobalBlankNodeCounter++;
           return  {token: "triplesnodecollection", 
-                   triplesContext:[{subject: {token:'blank', value:("_:"+GlobalBlankNodeCounter)},
+                   triplesContext:[{subject: {token:'blank', label:("_:"+GlobalBlankNodeCounter)},
                                     predicate:{token:'uri', prefix:null, suffix:null, value:'http://www.w3.org/1999/02/22-rdf-syntax-ns#rest'},
-                                    object:  {token:'blank', value:("_:"+(GlobalBlankNodeCounter+1))}}], 
-                   chainSubject:{token:'blank', value:("_:"+GlobalBlankNodeCounter)}};
+                                    object:  {token:'blank', label:("_:"+(GlobalBlankNodeCounter+1))}}], 
+                   chainSubject:{token:'blank', label:("_:"+GlobalBlankNodeCounter)}};
 
       }
       */
@@ -1534,7 +1596,7 @@ TriplesNode "[87] TriplesNode"
               triplesContext = triplesContext.concat(nextSubject.triplesContext);
           }
           var currentSubject = null;
-          triple = {subject: {token:'blank', value:("_:"+GlobalBlankNodeCounter)},
+          triple = {subject: {token:'blank', label:("_:"+GlobalBlankNodeCounter)},
                     predicate:{token:'uri', prefix:null, suffix:null, value:'http://www.w3.org/1999/02/22-rdf-syntax-ns#first'},
                     object:nextObject };
 
@@ -1545,13 +1607,13 @@ TriplesNode "[87] TriplesNode"
           triplesContext.push(triple);
 
           if(i===(c.length-1)) {
-              triple = {subject: {token:'blank', value:("_:"+GlobalBlankNodeCounter)},
+              triple = {subject: {token:'blank', label:("_:"+GlobalBlankNodeCounter)},
                         predicate:{token:'uri', prefix:null, suffix:null, value:'http://www.w3.org/1999/02/22-rdf-syntax-ns#rest'},
                         object:   {token:'uri', prefix:null, suffix:null, value:'http://www.w3.org/1999/02/22-rdf-syntax-ns#nil'}};
           } else {
-              triple = {subject: {token:'blank', value:("_:"+GlobalBlankNodeCounter)},
+              triple = {subject: {token:'blank', label:("_:"+GlobalBlankNodeCounter)},
                         predicate:{token:'uri', prefix:null, suffix:null, value:'http://www.w3.org/1999/02/22-rdf-syntax-ns#rest'},
-                        object:  {token:'blank', value:("_:"+(GlobalBlankNodeCounter+1))} };
+                        object:  {token:'blank', label:("_:"+(GlobalBlankNodeCounter+1))} };
           }
 
           triplesContext.push(triple);
@@ -1568,10 +1630,10 @@ BlankNodePropertyList "[88] BlankNodePropertyList"
   = WS* '[' WS* pl:PropertyListNotEmpty WS* ']' WS* {
 
       GlobalBlankNodeCounter++;
-      var subject = {token:'blank', value:'_:'+GlobalBlankNodeCounter};
+      var subject = {token:'blank', label:'_:'+GlobalBlankNodeCounter};
       var newTriples =  [];
 
-      for(var i=0; pl && i< pl.pairs.length; i++) {
+      for(var i=0; i< pl.pairs.length; i++) {
           var pair = pl.pairs[i];
           var triple = {}
           triple.subject = subject;
@@ -1696,7 +1758,7 @@ ConditionalOrExpression "[96] ConditionalOrExpression"
       exp.expressionType = "conditionalor";
       var ops = [v];
 
-      for(var i=0; vs && i<vs.length; i++) {
+      for(var i=0; i<vs.length; i++) {
           ops.push(vs[i][3]);
       }
 
@@ -1718,7 +1780,7 @@ ConditionalAndExpression "[97] ConditionalAndExpression"
       exp.expressionType = "conditionaland";
       var ops = [v];
 
-      for(var i=0; vs && i<vs.length; i++) {
+      for(var i=0; i<vs.length; i++) {
           ops.push(vs[i][3]);
       }
 
@@ -1807,7 +1869,7 @@ AdditiveExpression "[101] AdditiveExpression"
       ex.summand = op1;
       ex.summands = [];
 
-      for(var i=0; ops && i<ops.length; i++) {
+      for(var i=0; i<ops.length; i++) {
           var summand = ops[i];
           var sum = {};
           if(summand.length == 4 && typeof(summand[1]) === "string") {
@@ -1853,7 +1915,7 @@ MultiplicativeExpression "[102] MultiplicativeExpression"
       ex.expressionType = 'multiplicativeexpression';
       ex.factor = exp;
       ex.factors = [];
-      for(var i=0; exps && i<exps.length; i++) {
+      for(var i=0; i<exps.length; i++) {
           var factor = exps[i];
           var fact = {};
           fact.operator = factor[1];
@@ -1975,7 +2037,7 @@ BrackettedExpression "[105] BrackettedExpression"
                                        |  NotExistsFunc
 */
 BuiltInCall "[106] BuiltInCall"
-  = ('STR'/'str') WS* '(' WS* e:Expression WS* ')' {
+  = ('S'/'s')('T'/'t')('R'/'r') WS* '(' WS* e:Expression WS* ')' {
       var ex = {};
       ex.token = 'expression'
       ex.expressionType = 'builtincall'
@@ -1984,7 +2046,7 @@ BuiltInCall "[106] BuiltInCall"
 
       return ex;
   }
-  / ('LANG'/'lang') WS* '(' WS* e:Expression WS* ')' {
+  / ('L'/'l')('A'/'a')('N'/'n')('G'/'g') WS* '(' WS* e:Expression WS* ')' {
       var ex = {};
       ex.token = 'expression'
       ex.expressionType = 'builtincall'
@@ -1993,7 +2055,7 @@ BuiltInCall "[106] BuiltInCall"
 
       return ex;
 }
-  / ('LANGMATCHES'/'langmatches') WS* '(' WS* e1:Expression WS* ',' WS* e2:Expression WS* ')' {
+  / 'LANGMATCHES' WS* '(' WS* e1:Expression WS* ',' WS* e2:Expression WS* ')' {
       var ex = {};
       ex.token = 'expression'
       ex.expressionType = 'builtincall'
@@ -2002,7 +2064,7 @@ BuiltInCall "[106] BuiltInCall"
 
       return ex;
 }
-  / ('DATATYPE'/'datatype') WS* '(' WS* e:Expression WS* ')' {
+  / ('D'/'d')('A'/'a')('T'/'t')('A'/'a')('T'/'t')('Y'/'y')('P'/'p')('E'/'e') WS* '(' WS* e:Expression WS* ')' {
       var ex = {};
       ex.token = 'expression'
       ex.expressionType = 'builtincall'
@@ -2011,7 +2073,7 @@ BuiltInCall "[106] BuiltInCall"
 
       return ex;
 }
-  / ('BOUND'/'bound') WS* '(' WS* v:Var WS* ')'  {
+  / 'BOUND' WS* '(' WS* v:Var WS* ')'  {
       var ex = {};
       ex.token = 'expression'
       ex.expressionType = 'builtincall'
@@ -2020,7 +2082,7 @@ BuiltInCall "[106] BuiltInCall"
 
       return ex;
 }
-  / ('IRI'/'iri') WS* '(' WS* e:Expression WS* ')' {
+  / 'IRI' WS* '(' WS* e:Expression WS* ')' {
       var ex = {};
       ex.token = 'expression';
       ex.expressionType = 'builtincall';
@@ -2030,7 +2092,7 @@ BuiltInCall "[106] BuiltInCall"
       return ex;
 }
 
-  / ('URI'/'uri') WS* '(' WS* e:Expression WS* ')' {
+  / 'URI' WS* '(' WS* e:Expression WS* ')' {
       var ex = {};
       ex.token = 'expression';
       ex.expressionType = 'builtincall';
@@ -2040,7 +2102,7 @@ BuiltInCall "[106] BuiltInCall"
       return ex;
 }
 
-  / ('BNODE'/'bnode') WS* arg:('(' WS* e:Expression WS* ')' / NIL) {
+  / 'BNODE' WS* arg:('(' WS* e:Expression WS* ')' / NIL) {
       var ex = {};
       ex.token = 'expression';
       ex.expressionType = 'builtincall';
@@ -2054,7 +2116,7 @@ BuiltInCall "[106] BuiltInCall"
       return ex;
 }
 
-/ ('COALESCE'/'coalesce') WS* args:ExpressionList {
+/ 'COALESCE' WS* args:ExpressionList {
       var ex = {};
       ex.token = 'expression';
       ex.expressionType = 'builtincall';
@@ -2064,7 +2126,7 @@ BuiltInCall "[106] BuiltInCall"
       return ex;    
 }
 
-/ ('IF'/'if') WS* '(' WS* test:Expression WS* ',' WS* trueCond:Expression WS* ',' WS* falseCond:Expression WS* ')' {
+/ 'IF' WS* '(' WS* test:Expression WS* ',' WS* trueCond:Expression WS* ',' WS* falseCond:Expression WS* ')' {
     var ex = {};
     ex.token = 'expression';
     ex.expressionType = 'builtincall';
@@ -2073,7 +2135,7 @@ BuiltInCall "[106] BuiltInCall"
 
     return ex;
 }
-/ ('ISLITERAL'/'isliteral') WS* '(' WS* arg:Expression WS* ')' {
+/ 'ISLITERAL' WS* '(' WS* arg:Expression WS* ')' {
     var ex = {};
     ex.token = 'expression';
     ex.expressionType = 'builtincall';
@@ -2082,7 +2144,7 @@ BuiltInCall "[106] BuiltInCall"
 
     return ex;
 }
-/ ('ISBLANK'/'isblank') WS* '(' WS* arg:Expression WS* ')' {
+/ 'ISBLANK' WS* '(' WS* arg:Expression WS* ')' {
     var ex = {};
     ex.token = 'expression';
     ex.expressionType = 'builtincall';
@@ -2091,7 +2153,7 @@ BuiltInCall "[106] BuiltInCall"
 
     return ex;
 }
-/ ('SAMETERM'/'sameterm') WS*  '(' WS* e1:Expression WS* ',' WS* e2:Expression WS* ')' {
+/ 'SAMETERM' WS*  '(' WS* e1:Expression WS* ',' WS* e2:Expression WS* ')' {
     var ex = {};
     ex.token = 'expression';
     ex.expressionType = 'builtincall';
@@ -2099,7 +2161,7 @@ BuiltInCall "[106] BuiltInCall"
     ex.args = [e1, e2];
     return ex;
 }
-/ ('ISURI'/'isuri'/'ISIRI'/'isiri') WS* '(' WS* arg:Expression WS* ')' {
+/ ('I'/'i')('S'/'s')('U'/'u')('R'/'r')('I'/'i') WS* '(' WS* arg:Expression WS* ')' {
     var ex = {};
     ex.token = 'expression';
     ex.expressionType = 'builtincall';
@@ -2108,18 +2170,14 @@ BuiltInCall "[106] BuiltInCall"
 
     return ex;
 }
-/ ('custom:'/'CUSTOM:') fnname:[a-zA-Z0-9_]+ WS* '(' alter:(WS* Expression ',')* WS* finalarg:Expression WS* ')'  {
-  var ex = {};
-  ex.token = 'expression';
-  ex.expressionType = 'custom';
-  ex.name = fnname.join('');
-  var acum = [];
-  for(var i=0; i<alter.length; i++)
-    acum.push(alter[i][1]);
-  acum.push(finalarg);
-  ex.args = acum;
+/ ('I'/'i')('S'/'s')('I'/'i')('R'/'r')('I'/'i') WS* '(' WS* arg:Expression WS* ')' {
+    var ex = {};
+    ex.token = 'expression';
+    ex.expressionType = 'builtincall';
+    ex.builtincall = 'isuri';
+    ex.args = [arg];
 
-  return ex;
+    return ex;
 }
 / RegexExpression
 / ExistsFunc
@@ -2129,7 +2187,7 @@ BuiltInCall "[106] BuiltInCall"
   [107]  	RegexExpression	  ::=  	'REGEX' '(' Expression ',' Expression ( ',' Expression )? ')'
 */
 RegexExpression "[107] RegexExpression"  
-  = ('REGEX'/'regex') WS* '(' WS* e1:Expression WS* ',' WS* e2:Expression WS* eo:( ',' WS* Expression)?  WS* ')' {
+  = ('R'/'r')('E'/'e')('G'/'g')('E'/'e')('X'/'x') WS* '(' WS* e1:Expression WS* ',' WS* e2:Expression WS* eo:( ',' WS* Expression)?  WS* ')' {
       var regex = {};
       regex.token = 'expression';
       regex.expressionType = 'regex';
@@ -2144,7 +2202,7 @@ RegexExpression "[107] RegexExpression"
   [108]  	ExistsFunc	  ::=  	'EXISTS' GroupGraphPattern
 */
 ExistsFunc "[108] ExistsFunc"
-  = ('EXISTS'/'exists') WS* ggp:GroupGraphPattern {
+  = ('E'/'e')('X'/'x')('I'/'i')('S'/'s')('T'/'t')('S'/'s') WS* ggp:GroupGraphPattern {
     var ex = {};
     ex.token = 'expression';
     ex.expressionType = 'builtincall';
@@ -2158,7 +2216,7 @@ ExistsFunc "[108] ExistsFunc"
   [109]  	NotExistsFunc	  ::=  	'NOT EXISTS' GroupGraphPattern
 */
 NotExistsFunc "[109] NotExistsFunc"
-  = ('NOT'/'not') WS* ('EXISTS'/'exists') WS* ggp:GroupGraphPattern {
+  = ('N'/'n')('O'/'o')('T'/'t')WS*('E'/'e')('X'/'x')('I'/'i')('S'/'s')('T'/'t')('S'/'s') WS* ggp:GroupGraphPattern {
     var ex = {};
     ex.token = 'expression';
     ex.expressionType = 'builtincall';
@@ -2180,8 +2238,8 @@ NotExistsFunc "[109] NotExistsFunc"
                                           'GROUP_CONCAT' '(' 'DISTINCT'? Expression ( ';' 'SEPARATOR' '=' String )? ')' )
 */
 Aggregate "[110] Aggregate"
-  =   ('COUNT'/'count') WS* '(' WS* d:('DISTINCT'/'distinct')? WS* e:('*'/Expression) WS* ')' WS* {
-      var exp = {};
+  =   ('C'/'c')('O'/'o')('U'/'u')('N'/'n')('T'/'t') WS* '(' WS* d:( ('D'/'d')('I'/'i')('S'/'s')('T'/'t')('I'/'i')('N'/'n')('C'/'c')('T'/'t') )? WS* e:('*'/Expression) WS* ')' WS* {
+      exp = {};
       exp.token = 'expression';
       exp.expressionType = 'aggregate';
       exp.aggregateType = 'count';
@@ -2191,8 +2249,8 @@ Aggregate "[110] Aggregate"
       return exp;
 
   }
-  / ('SUM'/'sum') WS* '(' WS* d: ('DISTINCT'/'distinct')? WS*  e:Expression WS* ')' WS* {
-      var exp = {};
+  / ('S'/'s')('U'/'u')('M'/'m') WS* '(' WS* d:( ('D'/'d')('I'/'i')('S'/'s')('T'/'t')('I'/'i')('N'/'n')('C'/'c')('T'/'t') )? WS*  e:Expression WS* ')' WS* {
+      exp = {};
       exp.token = 'expression';
       exp.expressionType = 'aggregate';
       exp.aggregateType = 'sum';
@@ -2202,8 +2260,8 @@ Aggregate "[110] Aggregate"
       return exp;
 
   }
-  / ('MIN'/'min') WS* '(' WS* d:('DISTINCT'/'distinct')? WS* e:Expression WS* ')' WS* {
-      var exp = {};
+  / ('M'/'m')('I'/'i')('N'/'n') WS* '(' WS* d:( ('D'/'d')('I'/'i')('S'/'s')('T'/'t')('I'/'i')('N'/'n')('C'/'c')('T'/'t') )? WS* e:Expression WS* ')' WS* {
+      exp = {};
       exp.token = 'expression';
       exp.expressionType = 'aggregate';
       exp.aggregateType = 'min';
@@ -2213,8 +2271,8 @@ Aggregate "[110] Aggregate"
       return exp;
 
   }
-  / ('MAX'/'max') WS* '(' WS* d:('DISTINCT'/'distinct')? WS* e:Expression WS* ')' WS* {
-      var exp = {};
+  / ('M'/'m')('A'/'a')('X'/'x') WS* '(' WS* d:( ('D'/'d')('I'/'i')('S'/'s')('T'/'t')('I'/'i')('N'/'n')('C'/'c')('T'/'t') )? WS* e:Expression WS* ')' WS* {
+      exp = {};
       exp.token = 'expression'
       exp.expressionType = 'aggregate'
       exp.aggregateType = 'max'
@@ -2224,8 +2282,8 @@ Aggregate "[110] Aggregate"
       return exp
 
   }
-  / ('AVG'/'avg') WS* '(' WS* d:('DISTINCT'/'distinct')? WS* e:Expression WS* ')' WS* {
-      var exp = {};
+  / ('A'/'a')('V'/'v')('G'/'g') WS* '(' WS* d:( ('D'/'d')('I'/'i')('S'/'s')('T'/'t')('I'/'i')('N'/'n')('C'/'c')('T'/'t') )? WS* e:Expression WS* ')' WS* {
+      exp = {};
       exp.token = 'expression'
       exp.expressionType = 'aggregate'
       exp.aggregateType = 'avg'
@@ -2306,16 +2364,16 @@ NumericLiteralNegative "[116] NumericLiteralNegative"
   [117]  	BooleanLiteral	  ::=  	'true' |	'false'
 */
 BooleanLiteral "[117] BooleanLiteral"
-  = ('TRUE'/'true') {
-      var lit = {};
+  = ('T'/'t')('R'/'r')('U'/'u')('E'/'e') {
+      lit = {};
       lit.token = "literal";
       lit.lang = null;
       lit.type = "http://www.w3.org/2001/XMLSchema#boolean";
       lit.value = true;
       return lit;
  }
-  / ('FALSE'/'false') {
-      var lit = {};
+  / ('F'/'f')('A'/'a')('L'/'l')('S'/'s')('E'/'e') {
+      lit = {};
       lit.token = "literal";
       lit.lang = null;
       lit.type = "http://www.w3.org/2001/XMLSchema#boolean";
@@ -2350,8 +2408,8 @@ PrefixedName "[120] PrefixedName"
   [121]  	BlankNode	  ::=  	BLANK_NODE_LABEL |	ANON
 */
 BlankNode "[121] BlankNode"
-  = l:BLANK_NODE_LABEL { return {token:'blank', value:l}}
-  / ANON { GlobalBlankNodeCounter++; return {token:'blank', value:'_:'+GlobalBlankNodeCounter} }
+  = l:BLANK_NODE_LABEL { return {token:'blank', label:l}}
+  / ANON { GlobalBlankNodeCounter++; return {token:'blank', label:'_:'+GlobalBlankNodeCounter} }
 
 /*
   [122]  	IRI_REF	  ::=  	'<' ([^<>"{}|^`\]-[#x00-#x20])* '>'
@@ -2409,7 +2467,7 @@ LANGTAG "[128] LANGTAG"
 */
 INTEGER "[129] INTEGER"
   = d:[0-9]+ {
-      var lit = {};
+      lit = {};
       lit.token = "literal";
       lit.lang = null;
       lit.type = "http://www.w3.org/2001/XMLSchema#integer";
@@ -2423,7 +2481,7 @@ INTEGER "[129] INTEGER"
 DECIMAL "[130] DECIMAL"
   = a:[0-9]+ b:'.' c:[0-9]* {
 
-      var lit = {};
+      lit = {};
       lit.token = "literal";
       lit.lang = null;
       lit.type = "http://www.w3.org/2001/XMLSchema#decimal";
@@ -2431,7 +2489,7 @@ DECIMAL "[130] DECIMAL"
       return lit;
 }
   / a:'.' b:[0-9]+ {
-      var lit = {};
+      lit = {};
       lit.token = "literal";
       lit.lang = null;
       lit.type = "http://www.w3.org/2001/XMLSchema#decimal";
@@ -2444,7 +2502,7 @@ DECIMAL "[130] DECIMAL"
 */
 DOUBLE "[131] DOUBLE"
   = a:[0-9]+ b:'.' c:[0-9]* e:EXPONENT {
-      var lit = {};
+      lit = {};
       lit.token = "literal";
       lit.lang = null;
       lit.type = "http://www.w3.org/2001/XMLSchema#double";
@@ -2452,7 +2510,7 @@ DOUBLE "[131] DOUBLE"
       return lit;
 }
   / a:'.' b:[0-9]+ c:EXPONENT {
-      var lit = {};
+      lit = {};
       lit.token = "literal";
       lit.lang = null;
       lit.type = "http://www.w3.org/2001/XMLSchema#double";
@@ -2460,7 +2518,7 @@ DOUBLE "[131] DOUBLE"
       return lit;
 }
   / a:[0-9]+ b:EXPONENT {
-      var lit = {};
+      lit = {};
       lit.token = "literal";
       lit.lang = null;
       lit.type = "http://www.w3.org/2001/XMLSchema#double";

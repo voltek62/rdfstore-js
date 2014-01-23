@@ -1,0 +1,11 @@
+{
+	"name": "rdfstore-js",
+	"dependencies": {
+		"requirejs":"~2.1.10",
+		"async":"~0.2.9"
+	},
+	"devDependencies": {
+		"pegjs":"~0.8.0",
+		"nodeunit":"~0.8.2"
+	}
+}
